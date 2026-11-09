@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Jost", system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: theme("colors.line");
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* The hero pins the page while scrubbing frames; native smoothing fights it. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply bg-charcoal text-ivory font-body antialiased;
+    /* Prevents the horizontal overflow called out in brief section 15. */
+    overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display;
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    background: theme("colors.copper");
+    color: theme("colors.charcoal");
+  }
+
+  /* Copper scrollbar, kept thin so it reads as a detail not a feature. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: theme("colors.deep"); }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(theme("colors.copperDark"), theme("colors.copper"));
+    border-radius: 99px;
+    border: 2px solid theme("colors.deep");
+  }
+
+  :focus-visible {
+    outline: 2px solid theme("colors.champagne");
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* ---------- Typography ---------- */
+  .eyebrow {
+    @apply text-[11px] uppercase tracking-[0.42em] text-champagne;
+  }
+  .h-section {
+    @apply font-display text-3xl leading-tight md:text-5xl;
+  }
+  .section-title {
+    @apply flex items-center justify-center gap-5 text-center;
+  }
+  .section-title::before,
+  .section-title::after {
+    content: "";
+    @apply h-px w-16 shrink-0 bg-gradient-to-r from-transparent via-copper to-copper md:w-28;
+  }
+  .section-title::after {
+    @apply bg-gradient-to-l from-transparent via-copper to-copper;
+  }
+
+  /* ---------- Surfaces ---------- */
+  .card {
+    @apply rounded-xl border border-copper/25 bg-deep shadow-card;
+  }
+  .card-espresso {
+    @apply rounded-xl border border-copper/25 bg-espresso/70 shadow-inset;
+  }
+  .hairline {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-copper/40 to-transparent;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm px-6 py-3 text-[12px]
+           font-medium uppercase tracking-[0.18em] transition-all duration-300
+           disabled:pointer-events-none disabled:opacity-45;
+  }
+  .btn-solid {
+    @apply btn bg-gradient-to-r from-copper to-champagne text-charcoal
+           hover:shadow-glow hover:brightness-110 active:translate-y-px;
+  }
+  .btn-outline {
+    @apply btn border border-copper/60 text-champagne hover:bg-copper/10 hover:border-copper;
+  }
+  .btn-ghost {
+    @apply btn text-ivory/75 hover:text-champagne hover:bg-copper/10;
+  }
+  .btn-sm {
+    @apply px-4 py-2 text-[11px];
+  }
+
+  /* ---------- Inputs ---------- */
+  .field {
+    @apply w-full rounded-sm border border-copper/25 bg-charcoal/70 px-4 py-3 text-sm text-ivory
+           placeholder:text-ivory/30 transition-colors focus:border-copper focus:outline-none;
+  }
+  .label {
+    @apply mb-1.5 block text-[11px] uppercase tracking-[0.2em] text-champagne/80;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-copper/30 px-3 py-1
+           text-[11px] uppercase tracking-wider text-ivory/70;
+  }
+
+  /* Sample-data marker required by brief section 9 / 17. */
+  .sample-tag {
+    @apply inline-flex items-center gap-1 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5
+           text-[9px] uppercase tracking-[0.16em] text-warn;
+  }
+
+  /* Sheen sweep used on premium buttons and KPI tiles. */
+  .sheen {
+    @apply relative overflow-hidden;
+  }
+  .sheen::after {
+    content: "";
+    @apply pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 animate-shimmer bg-sheen opacity-0;
+  }
+  .sheen:hover::after {
+    @apply opacity-100;
+  }
+
+  /* ---------- Carousel primitives ---------- */
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .gold-text {
+    @apply bg-gradient-to-br from-champagne via-ivory to-copper bg-clip-text text-transparent;
+  }
+}
