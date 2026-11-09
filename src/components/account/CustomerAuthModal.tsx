@@ -442,7 +442,7 @@ export default function CustomerAuthModal({
                 />
               </div>
               <p className="mt-1 text-[10.5px] text-ivory/50">
-                A 15-minute OTP will be delivered via EmailJS to verify your address.
+                A 15-minute OTP will be delivered via EmailJS. Please check the Spam folder in your Gmail for the verification code.
               </p>
             </div>
 
@@ -516,6 +516,9 @@ export default function CustomerAuthModal({
               <p className="text-sm text-ivory">Enter 6-Digit Passcode</p>
               <p className="text-xs text-ivory/60 mt-1">
                 Sent to <strong className="text-champagne">{maskedEmail || email}</strong>
+              </p>
+              <p className="mt-2 text-[11px] text-champagne/90 bg-espresso/50 border border-copper/30 rounded px-2.5 py-1 inline-block">
+                ✉️ Check the Spam folder in your Gmail for verification code
               </p>
             </div>
 
@@ -619,7 +622,7 @@ export default function CustomerAuthModal({
                 className="field"
               />
               <p className="mt-1.5 text-[11px] text-ivory/50">
-                We will deliver a 6-digit access code to your registered email via EmailJS.
+                We will deliver a 6-digit access code to your registered email via EmailJS. Please check the Spam folder in your Gmail for verification code.
               </p>
             </div>
 

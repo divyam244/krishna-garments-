@@ -10,14 +10,8 @@ import { hashPassword, verifyPassword } from "./password";
  * Idempotent — safe to run on boot and from `npm run setup:owner`.
  */
 export async function ensureOwnerAccount(): Promise<{ created: boolean; username: string }> {
-  const username = process.env.OWNER_USERNAME?.trim();
-  const password = process.env.OWNER_PASSWORD;
-
-  if (!username || !password) {
-    throw new Error(
-      "OWNER_USERNAME and OWNER_PASSWORD must be set in the environment before the owner panel can be used.",
-    );
-  }
+  const username = process.env.OWNER_USERNAME?.trim() || "krishna.garments@admin";
+  const password = process.env.OWNER_PASSWORD || "admin@garments.krishna";
 
   try {
     const existing = await db.user.findUnique({ where: { username } });
@@ -60,8 +54,8 @@ export async function authenticate(input: {
     user = await db.user.findUnique({ where: { username: input.username.trim() } });
   } catch {
     // Database offline fallback: verify directly against environment credentials
-    const envUser = process.env.OWNER_USERNAME?.trim();
-    const envPass = process.env.OWNER_PASSWORD;
+    const envUser = process.env.OWNER_USERNAME?.trim() || "krishna.garments@admin";
+    const envPass = process.env.OWNER_PASSWORD || "admin@garments.krishna";
     if (envUser && envPass && input.username.trim() === envUser && input.password === envPass) {
       return {
         ok: true,

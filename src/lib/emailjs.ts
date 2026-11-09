@@ -11,9 +11,9 @@
 
 export const EMAILJS_CONFIG = {
   templateId: process.env.EMAILJS_TEMPLATE_ID || "template_uhqx4oa",
-  serviceId: process.env.EMAILJS_SERVICE_ID || "",
-  publicKey: process.env.EMAILJS_PUBLIC_KEY || "",
-  privateKey: process.env.EMAILJS_PRIVATE_KEY || "",
+  serviceId: process.env.EMAILJS_SERVICE_ID || "service_68s86h7",
+  publicKey: process.env.EMAILJS_PUBLIC_KEY || "KumCQz5ptENwOhrq1",
+  privateKey: process.env.EMAILJS_PRIVATE_KEY || "3r5NDJzR1I9bsZpsQneSv",
   logoUrl: "https://res.cloudinary.com/v86wzzbs/image/upload/f_png,q_auto/Krishna_Garments_Gold_Logo",
 };
 
