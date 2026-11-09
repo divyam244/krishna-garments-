@@ -18,6 +18,7 @@ export type DashboardData = {
     stockUnits: number;
     productionUnits: number;
     orderCount: number;
+    customerCount: number;
   };
   statusSplit: { label: string; pct: number; count: number; colour: string }[];
   salesTrend: { date: string; value: number }[];
@@ -46,7 +47,7 @@ async function fromDatabase(): Promise<DashboardData> {
   // Fail fast if the schema is absent, rather than half-rendering zeros.
   await db.order.count();
 
-  const [paidLast30, paidPrev30, outstanding, stockAgg, inProduction, orderCount, statusGroups, trendRows, products, batches, enquiries] =
+  const [paidLast30, paidPrev30, outstanding, stockAgg, inProduction, orderCount, customerCount, statusGroups, trendRows, products, batches, enquiries] =
     await Promise.all([
       db.order.aggregate({ _sum: { paidAmount: true }, where: { updatedAt: { gte: since30 }, paymentStatus: { in: ["PARTIAL", "PAID"] } } }),
       db.order.aggregate({ _sum: { paidAmount: true }, where: { updatedAt: { gte: prev30, lt: since30 }, paymentStatus: { in: ["PARTIAL", "PAID"] } } }),
@@ -60,6 +61,7 @@ async function fromDatabase(): Promise<DashboardData> {
         where: { stage: { not: "COMPLETE" } },
       }),
       db.order.count({ where: { status: { not: "CANCELLED" } } }),
+      db.customer.count(),
       db.order.groupBy({ by: ["status"], _count: { _all: true }, where: { status: { not: "CANCELLED" } } }),
       db.order.findMany({
         where: { createdAt: { gte: prev30 } },
@@ -104,6 +106,7 @@ async function fromDatabase(): Promise<DashboardData> {
       stockUnits: stockAgg._sum.stockOnHand ?? 0,
       productionUnits: inProduction._sum.completedQty ?? 0,
       orderCount,
+      customerCount,
     },
     statusSplit: statusGroups
       .map((g) => ({
@@ -157,6 +160,7 @@ function sampleData(): DashboardData {
       stockUnits: 4862,
       productionUnits: 1240,
       orderCount: 136,
+      customerCount: 68,
     },
     statusSplit: [
       { label: "Completed", count: 78, pct: 57, colour: "#5FBF7F" },

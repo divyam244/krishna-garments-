@@ -13,6 +13,8 @@ import {
   Truck,
   BarChart3,
   Settings,
+  FileText,
+  LogOut,
   Menu,
   X,
 } from "lucide-react";
@@ -26,6 +28,7 @@ export const ownerNav = [
   { href: "/owner/payments", label: "Payments", icon: CreditCard },
   { href: "/owner/customers", label: "Customers", icon: Users },
   { href: "/owner/suppliers", label: "Suppliers", icon: Truck },
+  { href: "/owner/invoices", label: "Invoices", icon: FileText },
   { href: "/owner/reports", label: "Reports", icon: BarChart3 },
   { href: "/owner/settings", label: "Settings", icon: Settings },
 ];
@@ -100,6 +103,17 @@ export default function OwnerSidebar({ owner }: { owner: { displayName: string; 
                 </li>
               );
             })}
+            <li className="mt-2 pt-2 border-t border-copper/15">
+              <form action="/api/owner/logout" method="POST">
+                <button
+                  type="submit"
+                  className="w-full group flex items-center gap-3 rounded-md px-3.5 py-2.5 text-[13.5px] border border-transparent text-danger/80 hover:bg-danger/10 hover:text-danger transition-all duration-300"
+                >
+                  <LogOut size={17} strokeWidth={1.6} />
+                  Logout
+                </button>
+              </form>
+            </li>
           </ul>
         </nav>
 

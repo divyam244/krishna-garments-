@@ -11,6 +11,8 @@ export const SESSION_COOKIE = "kg_owner_session";
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", pathname);
 
   const isLoginRoute = pathname === "/owner/login" || pathname.startsWith("/api/owner/login");
   const token = req.cookies.get(SESSION_COOKIE)?.value;
@@ -34,7 +36,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export const config = {

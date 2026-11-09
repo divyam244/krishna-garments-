@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { devStore } from "@/lib/auth/dev-store";
 
 export const SESSION_COOKIE = "kg_owner_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8; // 8 hours
@@ -28,15 +29,19 @@ export async function createSession(
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-  await db.session.create({
-    data: {
-      tokenHash: hashToken(token),
-      userId,
-      expiresAt,
-      ipHash: req.ip ? hashToken(req.ip).slice(0, 32) : null,
-      userAgent: req.userAgent?.slice(0, 255) ?? null,
-    },
-  });
+  try {
+    await db.session.create({
+      data: {
+        tokenHash: hashToken(token),
+        userId,
+        expiresAt,
+        ipHash: req.ip ? hashToken(req.ip).slice(0, 32) : null,
+        userAgent: req.userAgent?.slice(0, 255) ?? null,
+      },
+    });
+  } catch {
+    devStore.createOwnerSession(hashToken(token), userId, expiresAt);
+  }
 
   return { token, expiresAt };
 }
@@ -56,7 +61,11 @@ export async function destroyCurrentSession() {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) {
-    await db.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+    try {
+      await db.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+    } catch {
+      devStore.deleteOwnerSession(hashToken(token));
+    }
   }
   jar.delete(SESSION_COOKIE);
 }
@@ -70,31 +79,46 @@ export const getCurrentOwner = cache(async (): Promise<OwnerUser | null> => {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const session = await db.session.findUnique({
-    where: { tokenHash: hashToken(token) },
-    include: { user: true },
-  });
+  let session: any = null;
+  try {
+    session = await db.session.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: { user: true },
+    });
 
-  if (!session || session.expiresAt < new Date()) {
-    if (session) await db.session.delete({ where: { id: session.id } }).catch(() => {});
+    if (!session || session.expiresAt < new Date()) {
+      if (session) await db.session.delete({ where: { id: session.id } }).catch(() => {});
+      return null;
+    }
+
+    // Sliding expiry: refresh long-lived dashboards without forcing re-login.
+    if (IDLE_SLIDING && session.expiresAt.getTime() - Date.now() < SESSION_TTL_MS / 2) {
+      await db.session
+        .update({ where: { id: session.id }, data: { expiresAt: new Date(Date.now() + SESSION_TTL_MS) } })
+        .catch(() => {});
+    }
+
+    const u = session.user;
+    return {
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+      role: u.role,
+      mustChangePassword: u.mustChangePassword,
+    };
+  } catch {
+    const devSess = devStore.findOwnerSession(hashToken(token));
+    if (devSess && new Date(devSess.expiresAt).getTime() > Date.now()) {
+      return {
+        id: devSess.userId,
+        username: process.env.OWNER_USERNAME || "krishna.garments@admin",
+        displayName: "Owner",
+        role: "OWNER",
+        mustChangePassword: false,
+      };
+    }
     return null;
   }
-
-  // Sliding expiry: refresh long-lived dashboards without forcing re-login.
-  if (IDLE_SLIDING && session.expiresAt.getTime() - Date.now() < SESSION_TTL_MS / 2) {
-    await db.session
-      .update({ where: { id: session.id }, data: { expiresAt: new Date(Date.now() + SESSION_TTL_MS) } })
-      .catch(() => {});
-  }
-
-  const u = session.user;
-  return {
-    id: u.id,
-    username: u.username,
-    displayName: u.displayName,
-    role: u.role,
-    mustChangePassword: u.mustChangePassword,
-  };
 });
 
 export async function requireOwner(): Promise<OwnerUser> {

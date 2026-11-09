@@ -28,9 +28,8 @@ export default function OwnerLoginForm() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Sign in failed.");
 
-      // mustChangePassword lands the owner on Settings rather than the dashboard.
-      router.replace(data.mustChangePassword ? "/owner/settings#password" : "/owner");
-      router.refresh();
+      // Redirect to the dashboard
+      window.location.href = data.mustChangePassword ? "/owner/settings#password" : "/owner";
     } catch (err) {
       setError((err as Error).message);
       setPassword("");

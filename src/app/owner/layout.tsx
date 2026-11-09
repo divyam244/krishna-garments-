@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { LogOut, ExternalLink } from "lucide-react";
 import { getCurrentOwner, destroyCurrentSession } from "@/lib/auth/session";
 import OwnerSidebar from "@/components/owner/OwnerSidebar";
@@ -12,6 +13,14 @@ export const metadata: Metadata = {
 
 /** Server-side authorization boundary for the whole owner area. */
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
+  const headerList = await headers();
+  const pathname = headerList.get("x-pathname") || "";
+
+  // Allow login route without wrapping in sidebar and without redirect loop
+  if (pathname === "/owner/login") {
+    return <>{children}</>;
+  }
+
   const owner = await getCurrentOwner();
   if (!owner) redirect("/owner/login");
 

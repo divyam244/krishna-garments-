@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Plus, Boxes, UserPlus, FileText, BarChart3, X } from "lucide-react";
+import { Plus, Boxes, Scissors, UserPlus, FileText, BarChart3, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /** Quick-action row from the reference design — every tile routes to a working screen. */
 const ACTIONS = [
   { label: "New Order", href: "/owner/orders?new=1", icon: Plus },
-  { label: "Start Production", href: "/owner/production?new=1", icon: Boxes },
+  { label: "Start Production", href: "/owner/production?new=1", icon: Scissors },
   { label: "Update Stock", href: "/owner/inventory?new=1", icon: Boxes },
   { label: "Add Customer", href: "/owner/customers?new=1", icon: UserPlus },
-  { label: "Create Invoice", href: "/owner/payments?new=1", icon: FileText },
+  { label: "Create Invoice", href: "/owner/invoices", icon: FileText },
   { label: "View Reports", href: "/owner/reports", icon: BarChart3 },
 ];
 

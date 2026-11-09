@@ -22,11 +22,16 @@ export type OrderRow = {
 };
 
 const STATUS_MAP: Record<string, { label: string; tone: string }> = {
+  NEW: { label: "New", tone: "border-danger/50 bg-danger/12 text-danger" },
   PENDING: { label: "Pending", tone: "border-danger/50 bg-danger/12 text-danger" },
   CONFIRMED: { label: "Confirmed", tone: "border-copper/50 bg-copper/12 text-champagne" },
+  PROCESSING: { label: "Processing", tone: "border-warn/50 bg-warn/12 text-warn" },
   IN_PRODUCTION: { label: "In Production", tone: "border-warn/50 bg-warn/12 text-warn" },
+  READY: { label: "Ready", tone: "border-[#9B7BB8]/50 bg-[#9B7BB8]/12 text-[#C4A6DC]" },
   PACKED: { label: "Packed", tone: "border-[#9B7BB8]/50 bg-[#9B7BB8]/12 text-[#C4A6DC]" },
+  DISPATCHED: { label: "Dispatched", tone: "border-champagne/50 bg-champagne/12 text-champagne" },
   SHIPPED: { label: "Shipped", tone: "border-champagne/50 bg-champagne/12 text-champagne" },
+  DELIVERED: { label: "Delivered", tone: "border-ok/50 bg-ok/12 text-ok" },
   COMPLETED: { label: "Completed", tone: "border-ok/50 bg-ok/12 text-ok" },
   CANCELLED: { label: "Cancelled", tone: "border-ivory/25 bg-ivory/8 text-ivory/50" },
 };

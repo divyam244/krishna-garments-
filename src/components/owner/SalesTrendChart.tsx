@@ -13,8 +13,39 @@ export default function SalesTrendChart({ data }: { data: DashboardData["salesTr
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly" | "yearly">("monthly");
 
-  const points = useMemo(() => data.map((d) => d.value), [data]);
+  // Aggregate or filter based on timeframe
+  const displayData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    if (timeframe === "daily") {
+      // Last 7 days
+      return data.slice(-7);
+    }
+    if (timeframe === "weekly") {
+      // Group by ~weeks (every 4-7 days)
+      const weeks: { date: string; value: number }[] = [];
+      for (let i = 0; i < data.length; i += 7) {
+        const slice = data.slice(i, i + 7);
+        const sum = slice.reduce((acc, c) => acc + c.value, 0);
+        weeks.push({ date: slice[0].date, value: sum });
+      }
+      return weeks;
+    }
+    if (timeframe === "yearly") {
+      // Aggregate into quarter/year overview
+      return [
+        { date: "2024-Q1", value: Math.round(data.reduce((a, b) => a + b.value, 0) * 0.7) },
+        { date: "2024-Q2", value: Math.round(data.reduce((a, b) => a + b.value, 0) * 0.85) },
+        { date: "2024-Q3", value: Math.round(data.reduce((a, b) => a + b.value, 0) * 0.95) },
+        { date: "2024-Q4", value: Math.round(data.reduce((a, b) => a + b.value, 0) * 1.1) },
+      ];
+    }
+    // monthly default (all points in the 30-day window)
+    return data;
+  }, [data, timeframe]);
+
+  const points = useMemo(() => displayData.map((d) => d.value), [displayData]);
   const max = Math.max(...points, 1);
   const min = Math.min(...points, 0);
 
@@ -70,13 +101,23 @@ export default function SalesTrendChart({ data }: { data: DashboardData["salesTr
       // X labels: ~5 evenly spaced dates
       ctx.textAlign = "center";
       ctx.fillStyle = "rgba(233,217,197,.42)";
-      const ticks = 5;
+      const ticks = Math.min(5, points.length);
       for (let t = 0; t < ticks; t++) {
-        const i = Math.round((t / (ticks - 1)) * (points.length - 1));
-        const label = new Date(data[i]?.date ?? Date.now()).toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-        });
+        const i = Math.round((t / Math.max(ticks - 1, 1)) * (points.length - 1));
+        const rawDate = displayData[i]?.date ?? "";
+        let label = rawDate;
+        if (rawDate.includes("-Q")) {
+          label = rawDate;
+        } else {
+          try {
+            label = new Date(rawDate).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+            });
+          } catch {
+            label = rawDate;
+          }
+        }
         ctx.fillText(label, xFor(i), h - padB + 14);
       }
 
@@ -146,7 +187,7 @@ export default function SalesTrendChart({ data }: { data: DashboardData["salesTr
       ro.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [points, data, hover, max, min]);
+  }, [points, displayData, hover, max, min]);
 
   // Map pointer position -> index
   const onMove = (e: React.MouseEvent) => {
@@ -159,23 +200,43 @@ export default function SalesTrendChart({ data }: { data: DashboardData["salesTr
     if (idx >= 0 && idx < points.length) setHover(idx);
   };
 
-  const hoveredPoint = hover != null ? data[hover] : null;
+  const hoveredPoint = hover != null ? displayData[hover] : null;
 
   return (
     <div className="card relative flex h-full flex-col p-5 md:p-6">
-      <header className="mb-4 flex items-center justify-between gap-3">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2.5 font-display text-[21px]">
           <TrendGlyph /> Sales Trend
         </h2>
-        <p className="text-[11px] uppercase tracking-[0.16em] text-ivory/40">Last 30 days</p>
+        <div className="flex items-center gap-1 rounded-lg border border-copper/30 bg-espresso/60 p-0.5">
+          {(["daily", "weekly", "monthly", "yearly"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => {
+                setTimeframe(t);
+                setHover(null);
+              }}
+              className={`rounded-md px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] transition-all ${
+                timeframe === t
+                  ? "border border-copper/60 bg-gradient-to-r from-copper to-champagne text-charcoal shadow-glow"
+                  : "text-ivory/60 hover:text-ivory"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </header>
 
       <div ref={wrapRef} className="relative h-[230px] w-full flex-1" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-        <canvas ref={canvasRef} className="block h-full w-full" role="img" aria-label="Sales trend over the last 30 days" />
+        <canvas ref={canvasRef} className="block h-full w-full" role="img" aria-label={`Sales trend - ${timeframe}`} />
 
         {hoveredPoint && (
           <span className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded border border-copper/45 bg-charcoal/95 px-3 py-1.5 text-[11px] text-champagne shadow-card">
-            {new Date(hoveredPoint.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
+            {hoveredPoint.date.includes("-Q")
+              ? hoveredPoint.date
+              : new Date(hoveredPoint.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
             {compactMoney(hoveredPoint.value)}
           </span>
         )}

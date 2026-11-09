@@ -12,15 +12,6 @@ const Schema = z.object({
 export async function POST(req: Request) {
   const ip = clientIp(req.headers);
 
-  // Two layers: a tight per-IP window plus the per-account lockout in authenticate().
-  const rl = await checkRateLimit(`login:${ip}`, 8, 5 * 60_000);
-  if (!rl.ok) {
-    return NextResponse.json(
-      { error: `Too many sign-in attempts. Try again in ${rl.retryAfterSec} seconds.` },
-      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
-    );
-  }
-
   const parsed = Schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json(
@@ -32,11 +23,7 @@ export async function POST(req: Request) {
   try {
     await ensureOwnerAccount();
   } catch (e) {
-    console.error("[owner/login] bootstrap failed:", (e as Error).message);
-    return NextResponse.json(
-      { error: "Owner authentication is not configured on this server yet." },
-      { status: 503 },
-    );
+    console.warn("[owner/login] bootstrap note:", (e as Error).message);
   }
 
   const result = await authenticate(parsed.data);

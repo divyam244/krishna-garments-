@@ -24,14 +24,23 @@ export type BatchRow = {
   isSample: boolean;
 };
 
-const STAGES = ["CUTTING", "STITCHING", "FINISHING", "QUALITY_CHECK", "PACKAGING", "COMPLETE"] as const;
+const STAGES = [
+  "CUTTING",
+  "STITCHING",
+  "FINISHING",
+  "QUALITY_CHECK",
+  "PACKAGING",
+  "READY_FOR_DISPATCH",
+  "COMPLETE",
+] as const;
 
 const STAGE_MAP: Record<string, { label: string; tone: string }> = {
   CUTTING: { label: "Cutting", tone: "border-danger/50 bg-danger/12 text-danger" },
   STITCHING: { label: "Stitching", tone: "border-warn/50 bg-warn/12 text-warn" },
   FINISHING: { label: "Finishing", tone: "border-copper/50 bg-copper/12 text-champagne" },
-  QUALITY_CHECK: { label: "Quality check", tone: "border-[#9B7BB8]/50 bg-[#9B7BB8]/12 text-[#C4A6DC]" },
+  QUALITY_CHECK: { label: "Quality Check", tone: "border-[#9B7BB8]/50 bg-[#9B7BB8]/12 text-[#C4A6DC]" },
   PACKAGING: { label: "Packaging", tone: "border-champagne/50 bg-champagne/12 text-champagne" },
+  READY_FOR_DISPATCH: { label: "Ready for Dispatch", tone: "border-ok/40 bg-ok/15 text-champagne" },
   COMPLETE: { label: "Complete", tone: "border-ok/50 bg-ok/12 text-ok" },
 };
 

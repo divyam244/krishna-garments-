@@ -1,8 +1,9 @@
 // KRISHNA GARMENTS — data model
 //
 // Covers the public storefront catalogue, customer/wholesale enquiries, cart,
+// customer authentication (Passkeys + EmailJS), customer dashboard,
 // and the full owner business panel (orders, inventory, production, payments,
-// customers, suppliers, reports, settings).
+// invoices, customers, suppliers, reports, settings).
 //
 // Sample data is isolated via `isSample` so it can be identified in the UI and
 // purged without touching real business records.
@@ -24,11 +25,16 @@ enum ProductAvailability {
 }
 
 enum OrderStatus {
+  NEW
   PENDING
   CONFIRMED
+  PROCESSING
   IN_PRODUCTION
+  READY
   PACKED
+  DISPATCHED
   SHIPPED
+  DELIVERED
   COMPLETED
   CANCELLED
 }
@@ -46,6 +52,7 @@ enum BatchStage {
   FINISHING
   QUALITY_CHECK
   PACKAGING
+  READY_FOR_DISPATCH
   COMPLETE
 }
 
@@ -157,144 +164,296 @@ model CartItem {
   @@unique([cartId, productId, size, colour])
 }
 
-// ------------------------------------------------------------- Business ops ---
+// -------------------------------------------------------- Customer Account ---
 
 model Customer {
-  id          String    @id @default(cuid())
-  name        String
-  company     String?
-  email       String?
-  phone       String?
-  address     String?
-  city        String?
-  gstin       String?
-  type        String    @default("RETAIL") // RETAIL | WHOLESALE | BULK
-  notes       String?
-  orders      Order[]
-  payments    Payment[]
-  enquiries   Enquiry[]
-  isSample    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  company       String?
+  email         String?   @unique
+  phone         String?   @unique
+  emailVerified DateTime?
+  phoneVerified Boolean   @default(false)
+  accountStatus String    @default("ACTIVE") // ACTIVE | SUSPENDED | PENDING_VERIFICATION
+  type          String    @default("RETAIL") // RETAIL | WHOLESALE | BULK
+  address       String?
+  city          String?
+  gstin         String?
+  notes         String?
+
+  passkeys          Passkey[]
+  sessions          CustomerSession[]
+  verificationCodes VerificationCode[]
+  addresses         CustomerAddress[]
+  orders            Order[]
+  payments          Payment[]
+  invoices          Invoice[]
+  enquiries         Enquiry[]
+
+  isSample      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([email])
 }
 
+model Passkey {
+  id           String    @id @default(cuid())
+  customerId   String
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  credentialId String    @unique // base64url encoded
+  publicKey    String    // base64 encoded credential public key
+  counter      BigInt    @default(0)
+  deviceType   String?   @default("singleDevice") // singleDevice | multiDevice
+  backedUp     Boolean   @default(false)
+  transports   String?   // comma-separated
+  deviceName   String    @default("Biometric Device")
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([customerId])
+}
+
+model CustomerSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, expiresAt])
+}
+
+model VerificationCode {
+  id         String    @id @default(cuid())
+  target     String    // email or phone
+  codeHash   String    // SHA-256 hash of code
+  type       String    // EMAIL_VERIFY | LOGIN_RECOVERY | PHONE_VERIFY
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([target, type])
+}
+
+model CustomerAddress {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label      String   @default("Home") // Home | Work | Other
+  fullName   String
+  phone      String
+  street     String
+  city       String
+  state      String
+  pincode    String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  challenge String   @unique
+  target    String   // phone, email or customerId
+  type      String   // REGISTRATION | AUTHENTICATION
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([target, type])
+}
+
+// ------------------------------------------------------------- Business ops ---
+
 model Supplier {
-  id          String    @id @default(cuid())
-  name        String
-  contactName String?
-  phone       String?
-  email       String?
-  supplies    String? // Fabric | Trims | Packaging | Machines
+  id           String          @id @default(cuid())
+  name         String
+  contactName  String?
+  phone        String?
+  email        String?
+  supplies     String? // Fabric | Trims | Packaging | Machines
   leadTimeDays Int?
-  outstanding Decimal?  @db.Decimal(12, 2)
-  notes       String?
-  purchases   Purchase[]
-  isSample    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  outstanding  Decimal?        @db.Decimal(12, 2)
+  notes        String?
+  purchases    Purchase[]
+  materials    InventoryItem[]
+  isSample     Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  orderNo       String      @unique
+  id            String        @id @default(cuid())
+  orderNo       String        @unique
   customerId    String?
-  customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerName  String
-  status        OrderStatus @default(PENDING)
+  status        OrderStatus   @default(NEW)
   paymentStatus PaymentStatus @default(UNPAID)
-  channel       String      @default("ONLINE") // ONLINE | WHOLESALE | CUSTOM
-  subtotal      Decimal     @db.Decimal(12, 2)
-  shipping      Decimal     @default(0) @db.Decimal(12, 2)
-  discount      Decimal     @default(0) @db.Decimal(12, 2)
-  total         Decimal     @db.Decimal(12, 2)
-  paidAmount    Decimal     @default(0) @db.Decimal(12, 2)
+  channel       String        @default("ONLINE") // ONLINE | WHOLESALE | CUSTOM
+  subtotal      Decimal       @db.Decimal(12, 2)
+  shipping      Decimal       @default(0) @db.Decimal(12, 2)
+  discount      Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  paidAmount    Decimal       @default(0) @db.Decimal(12, 2)
   dueDate       DateTime?
   batchId       String?
   batch         ProductionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   notes         String?
   items         OrderItem[]
   payments      Payment[]
-  isSample      Boolean     @default(false)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  invoices      Invoice[]
+  isSample      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([status, createdAt])
+  @@index([customerId])
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  label     String // snapshot name, survives product deletion
+  label     String   // snapshot name, survives product deletion
   size      String?
   colour    String?
-  unitPrice Decimal @db.Decimal(12, 2)
+  unitPrice Decimal  @db.Decimal(12, 2)
   quantity  Int
-  lineTotal Decimal @db.Decimal(12, 2)
+  lineTotal Decimal  @db.Decimal(12, 2)
+}
+
+model Invoice {
+  id             String    @id @default(cuid())
+  invoiceNo      String    @unique
+  orderId        String?
+  order          Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName   String
+  customerPhone  String?
+  customerEmail  String?
+  customerGstin  String?
+  billingAddress String?
+  subtotal       Decimal   @db.Decimal(12, 2)
+  taxRatePct     Decimal   @default(5.0) @db.Decimal(5, 2) // Configurable GST rate
+  taxAmount      Decimal   @default(0) @db.Decimal(12, 2)
+  discount       Decimal   @default(0) @db.Decimal(12, 2)
+  totalAmount    Decimal   @db.Decimal(12, 2)
+  amountPaid     Decimal   @default(0) @db.Decimal(12, 2)
+  balanceDue     Decimal   @db.Decimal(12, 2)
+  status         String    @default("ISSUED") // DRAFT | ISSUED | PARTIAL | PAID | CANCELLED
+  items          Json      @default("[]") // snapshot line items
+  dueDate        DateTime?
+  issuedAt       DateTime  @default(now())
+  payments       Payment[]
+  notes          String?
+  isSample       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([status, issuedAt])
 }
 
 model Payment {
-  id        String        @id @default(cuid())
-  receiptNo String        @unique
-  orderId   String?
-  order     Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  customerId String?
-  customer  Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  amount    Decimal       @db.Decimal(12, 2)
-  method    String        @default("BANK") // BANK | UPI | CASH | CARD
-  status    PaymentStatus @default(PARTIAL)
-  recordedAt DateTime     @default(now())
+  id           String        @id @default(cuid())
+  receiptNo    String        @unique
+  orderId      String?
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  invoiceId    String?
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  customerId   String?
+  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  amount       Decimal       @db.Decimal(12, 2)
+  method       String        @default("BANK") // BANK | UPI | CASH | CARD
+  status       PaymentStatus @default(PARTIAL)
+  recordedAt   DateTime      @default(now())
   dueAfterDays Int?
-  isSample  Boolean       @default(false)
+  notes        String?
+  isSample     Boolean       @default(false)
+
+  @@index([orderId])
+  @@index([invoiceId])
+  @@index([customerId])
 }
 
 model ProductionBatch {
-  id          String      @id @default(cuid())
-  batchNo     String      @unique
-  productName String
-  productId   String?
-  targetQty   Int
-  completedQty Int        @default(0)
-  stage       BatchStage  @default(CUTTING)
-  progressPct Int         @default(0)
-  startDate   DateTime    @default(now())
+  id           String          @id @default(cuid())
+  batchNo      String          @unique
+  productName  String
+  productId    String?
+  targetQty    Int
+  completedQty Int             @default(0)
+  stage        BatchStage      @default(CUTTING)
+  progressPct  Int             @default(0)
+  startDate    DateTime        @default(now())
   expectedDate DateTime?
-  inCharge    String?
-  notes       String?
-  orders      Order[]
-  movements   StockMovement[]
-  isSample    Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  inCharge     String?
+  notes        String?
+  orders       Order[]
+  movements    StockMovement[]
+  isSample     Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model InventoryItem {
+  id             String    @id @default(cuid())
+  sku            String    @unique
+  name           String
+  category       String    // FABRIC | ACCESSORY | FINISHED_GARMENT | TRIM
+  unit           String    @default("meters") // meters | pieces | rolls
+  quantityOnHand Decimal   @default(0) @db.Decimal(12, 2)
+  minThreshold   Decimal   @default(10) @db.Decimal(12, 2)
+  unitCost       Decimal?  @db.Decimal(12, 2)
+  supplierId     String?
+  supplier       Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  location       String?   // Rack / Bin
+  notes          String?
+  isSample       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([category])
 }
 
 model StockMovement {
-  id        String          @id @default(cuid())
+  id        String           @id @default(cuid())
   productId String
-  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   batchId   String?
   batch     ProductionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  type      String // IN | OUT | ADJUST
-  quantity  Int // signed: +in / -out
+  type      String           // IN | OUT | ADJUST
+  quantity  Int              // signed: +in / -out
   reason    String?
-  createdAt DateTime        @default(now())
+  createdAt DateTime         @default(now())
 
   @@index([productId, createdAt])
 }
 
 model Purchase {
-  id         String   @id @default(cuid())
-  invoiceNo  String   @unique
-  supplierId String
-  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  item       String
-  quantity   Int
-  amount     Decimal  @db.Decimal(12, 2)
-  status     String   @default("OPEN") // OPEN | PAID
-  purchaseDate DateTime @default(now())
-  isSample   Boolean  @default(false)
+  id           String    @id @default(cuid())
+  invoiceNo    String    @unique
+  supplierId   String
+  supplier     Supplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  item         String
+  quantity     Int
+  amount       Decimal   @db.Decimal(12, 2)
+  status       String    @default("OPEN") // OPEN | PAID
+  purchaseDate DateTime  @default(now())
+  isSample     Boolean   @default(false)
 }
 
 // ---------------------------------------------------------------- Enquiries ---
@@ -323,7 +482,7 @@ model Enquiry {
   @@index([type, status])
 }
 
-/// Newsletter signups from the footer (section 12).
+/// Newsletter signups from the footer.
 model Subscriber {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -334,19 +493,19 @@ model Subscriber {
 // -------------------------------------------------------------- Owner auth ---
 
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
-  passwordHash String // Argon2id, never plaintext
-  displayName  String
-  role         String    @default("OWNER") // OWNER | STAFF
-  mustChangePassword Boolean @default(false)
-  lastLoginAt  DateTime?
-  failedCount  Int       @default(0)
-  lockedUntil  DateTime?
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String     @id @default(cuid())
+  username           String     @unique
+  passwordHash       String     // Argon2id, never plaintext
+  displayName        String
+  role               String     @default("OWNER") // OWNER | STAFF
+  mustChangePassword Boolean    @default(false)
+  lastLoginAt        DateTime?
+  failedCount        Int        @default(0)
+  lockedUntil        DateTime?
+  sessions           Session[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 }
 
 /// Opaque bearer tokens only — the raw token is never stored, just its SHA-256.
